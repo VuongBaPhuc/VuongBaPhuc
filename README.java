@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 public class Person
 {
@@ -134,8 +135,16 @@ class Program
     static bool IdExists(int id)
         => records.Any(r => r.Id == id);
 
+    // ✅ EMAIL CHUẨN – KHÔNG NHẬN "0"
     static bool IsValidEmail(string email)
-        => email.Contains("@") && email.Contains(".");
+    {
+        if (string.IsNullOrWhiteSpace(email)) return false;
+        email = email.Trim().ToLower();
+        if (email.All(char.IsDigit)) return false;
+
+        string pattern = @"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$";
+        return Regex.IsMatch(email, pattern);
+    }
 
     static bool IsValidTelephone(string tel)
         => tel.All(char.IsDigit) && tel.Length == 10;
@@ -157,30 +166,21 @@ class Program
             {
                 string selected = Subjects[choice - 1];
                 if (!exclude.Contains(selected)) return selected;
-                Console.WriteLine("You already selected this subject. Choose another.");
+                Console.WriteLine("You already selected this subject.");
             }
-            else
-            {
-                Console.WriteLine("Invalid choice. Try again.");
-            }
+            else Console.WriteLine("Invalid choice.");
         }
     }
 
+    // ================= ADD ===================
     static void AddRecord()
     {
         int id;
         while (true)
         {
             Console.Write("Enter ID: ");
-            if (int.TryParse(Console.ReadLine(), out id))
-            {
-                if (!IdExists(id)) break;
-                Console.WriteLine("ID already exists. Enter a unique ID.");
-            }
-            else
-            {
-                Console.WriteLine("Invalid ID. Enter a number.");
-            }
+            if (int.TryParse(Console.ReadLine(), out id) && !IdExists(id)) break;
+            Console.WriteLine("Invalid or duplicate ID.");
         }
 
         string name;
@@ -188,9 +188,8 @@ class Program
         {
             Console.Write("Enter Name: ");
             name = Console.ReadLine() ?? "";
-            if (string.IsNullOrEmpty(name)) continue;
-            if (!NameExists(name)) break;
-            Console.WriteLine("Name already exists. Enter another.");
+            if (!string.IsNullOrWhiteSpace(name) && !NameExists(name)) break;
+            Console.WriteLine("Invalid or duplicate Name.");
         }
 
         string tel;
@@ -207,31 +206,15 @@ class Program
         {
             Console.Write("Enter Email: ");
             email = Console.ReadLine() ?? "";
-            if (!IsValidEmail(email))
-            {
-                Console.WriteLine("Invalid email format.");
-                continue;
-            }
-            if (EmailExists(email))
-            {
-                Console.WriteLine("Email already exists.");
-                continue;
-            }
+            if (!IsValidEmail(email)) { Console.WriteLine("Invalid email."); continue; }
+            if (EmailExists(email)) { Console.WriteLine("Email already exists."); continue; }
             break;
         }
 
-        string role = "";
-        while (true)
-        {
-            Console.WriteLine("Select Role: 1. Teacher 2. Admin 3. Student");
-            string? r = Console.ReadLine();
-            if (r == "1") { role = "teacher"; break; }
-            if (r == "2") { role = "admin"; break; }
-            if (r == "3") { role = "student"; break; }
-            Console.WriteLine("Invalid choice. Choose 1, 2, or 3.");
-        }
+        Console.WriteLine("Select Role: 1. Teacher 2. Admin 3. Student");
+        string role = Console.ReadLine() ?? "";
 
-        if (role == "teacher")
+        if (role == "1")
         {
             Console.Write("Enter Salary: ");
             decimal salary = decimal.Parse(Console.ReadLine() ?? "0");
@@ -239,17 +222,17 @@ class Program
             string s2 = ChooseSubject(new List<string> { s1 });
             records.Add(new Teacher(id, name, tel, email, salary, s1, s2));
         }
-        else if (role == "admin")
+        else if (role == "2")
         {
             Console.Write("Enter Salary: ");
             decimal salary = decimal.Parse(Console.ReadLine() ?? "0");
-            Console.Write("Full-Time? (yes/no): ");
-            bool full = (Console.ReadLine() ?? "").ToLower() == "yes";
+            Console.Write("Full-Time? (true/false): ");
+            bool full = bool.Parse(Console.ReadLine() ?? "false");
             Console.Write("Enter Working Hours: ");
             string hours = Console.ReadLine() ?? "";
             records.Add(new Admin(id, name, tel, email, salary, full, hours));
         }
-        else if (role == "student")
+        else if (role == "3")
         {
             string s1 = ChooseSubject();
             string s2 = ChooseSubject(new List<string> { s1 });
@@ -260,86 +243,127 @@ class Program
         Console.WriteLine("Record added successfully.");
     }
 
+    // ================= VIEW ===================
     static void ViewAll()
     {
-        if (!records.Any()) { Console.WriteLine("No records found."); return; }
+        if (!records.Any()) { Console.WriteLine("No records."); return; }
         foreach (var r in records) Console.WriteLine(r.GetDetails());
     }
 
     static void ViewByRole()
     {
         Console.WriteLine("Select Role: 1. Teacher 2. Admin 3. Student");
-        string? r = Console.ReadLine();
+        string r = Console.ReadLine() ?? "";
         string role = r == "1" ? "teacher" : r == "2" ? "admin" : "student";
-        var filter = records.Where(x => x.Role.ToLower() == role);
-        foreach (var rec in filter) Console.WriteLine(rec.GetDetails());
+        foreach (var rec in records.Where(x => x.Role.ToLower() == role))
+            Console.WriteLine(rec.GetDetails());
     }
 
+    // ================= EDIT ===================
     static void EditRecord()
     {
         Console.Write("Enter ID to edit: ");
-        if (!int.TryParse(Console.ReadLine(), out int id))
-        {
-            Console.WriteLine("Invalid ID."); return;
-        }
+        if (!int.TryParse(Console.ReadLine(), out int id)) return;
+
         var record = records.FirstOrDefault(r => r.Id == id);
         if (record == null) { Console.WriteLine("Record not found."); return; }
 
-        Console.Write("New Name (leave blank): ");
-        string? name = Console.ReadLine();
-        if (!string.IsNullOrEmpty(name) && !NameExists(name)) record.Name = name;
-
-        Console.Write("New Telephone (10 digits, leave blank): ");
-        string? tel = Console.ReadLine();
-        if (!string.IsNullOrEmpty(tel) && IsValidTelephone(tel)) record.Telephone = tel;
-
-        Console.Write("New Email (leave blank): ");
-        string? email = Console.ReadLine();
-        if (!string.IsNullOrEmpty(email) && IsValidEmail(email) && !EmailExists(email)) record.Email = email;
-
-        if (record is Teacher t)
+        while (true)
         {
-            Console.Write("New Salary (leave blank): ");
-            string? sal = Console.ReadLine();
-            if (!string.IsNullOrEmpty(sal)) t.Salary = decimal.Parse(sal);
-            Console.Write("Change Subject 1? (yes/no): ");
-            if ((Console.ReadLine() ?? "").ToLower() == "yes") t.Subject1 = ChooseSubject();
-            Console.Write("Change Subject 2? (yes/no): ");
-            if ((Console.ReadLine() ?? "").ToLower() == "yes") t.Subject2 = ChooseSubject(new List<string> { t.Subject1 });
-        }
-        else if (record is Admin a)
-        {
-            Console.Write("New Salary (leave blank): ");
-            string? sal = Console.ReadLine();
-            if (!string.IsNullOrEmpty(sal)) a.Salary = decimal.Parse(sal);
-            Console.Write("Full-Time? (yes/no): ");
-            string? ft = Console.ReadLine();
-            if (!string.IsNullOrEmpty(ft)) a.IsFullTime = ft.ToLower() == "yes";
-            Console.Write("New Working Hours (leave blank): ");
-            string? h = Console.ReadLine();
-            if (!string.IsNullOrEmpty(h)) a.WorkingHours = h;
-        }
-        else if (record is Student s)
-        {
-            Console.Write("Change Subject 1? (yes/no): ");
-            if ((Console.ReadLine() ?? "").ToLower() == "yes") s.Subject1 = ChooseSubject();
-            Console.Write("Change Subject 2? (yes/no): ");
-            if ((Console.ReadLine() ?? "").ToLower() == "yes") s.Subject2 = ChooseSubject(new List<string> { s.Subject1 });
-            Console.Write("Change Subject 3? (yes/no): ");
-            if ((Console.ReadLine() ?? "").ToLower() == "yes") s.Subject3 = ChooseSubject(new List<string> { s.Subject1, s.Subject2 });
+            Console.WriteLine("\n=== EDIT MENU ===");
+            Console.WriteLine("1. Edit Name");
+            Console.WriteLine("2. Edit Telephone");
+            Console.WriteLine("3. Edit Email");
+            Console.WriteLine("4. Edit Extra 1");
+            Console.WriteLine("5. Edit Extra 2");
+            Console.WriteLine("6. Edit Extra 3");
+            Console.WriteLine("0. Exit");
+            Console.Write("Choose: ");
+
+            string c = Console.ReadLine() ?? "";
+            if (c == "0") break;
+
+            switch (c)
+            {
+                case "1":
+                    Console.Write("New Name: ");
+                    string name = Console.ReadLine() ?? "";
+                    if (!NameExists(name)) record.Name = name;
+                    break;
+
+                case "2":
+                    Console.Write("New Telephone: ");
+                    string tel = Console.ReadLine() ?? "";
+                    if (IsValidTelephone(tel)) record.Telephone = tel;
+                    break;
+
+                case "3":
+                    while (true)
+                    {
+                        Console.Write("New Email: ");
+                        string email = (Console.ReadLine() ?? "").Trim().ToLower();
+                        if (email == record.Email) break;
+                        if (IsValidEmail(email) && !EmailExists(email))
+                        {
+                            record.Email = email;
+                            break;
+                        }
+                        Console.WriteLine("Invalid or duplicate email.");
+                    }
+                    break;
+
+                case "4":
+                    if (record is Teacher t1)
+                    {
+                        Console.Write("New Salary: ");
+                        t1.Salary = decimal.Parse(Console.ReadLine() ?? "0");
+                    }
+                    else if (record is Admin a1)
+                    {
+                        Console.Write("New Salary: ");
+                        a1.Salary = decimal.Parse(Console.ReadLine() ?? "0");
+                    }
+                    else if (record is Student s1)
+                        s1.Subject1 = ChooseSubject();
+                    break;
+
+                case "5":
+                    if (record is Teacher t2)
+                        t2.Subject1 = ChooseSubject();
+                    else if (record is Admin a2)
+                    {
+                        Console.Write("Full-Time (true/false): ");
+                        a2.IsFullTime = bool.Parse(Console.ReadLine() ?? "false");
+                    }
+                    else if (record is Student s2)
+                        s2.Subject2 = ChooseSubject(new List<string> { s2.Subject1 });
+                    break;
+
+                case "6":
+                    if (record is Teacher t3)
+                        t3.Subject2 = ChooseSubject(new List<string> { t3.Subject1 });
+                    else if (record is Admin a3)
+                    {
+                        Console.Write("New Working Hours: ");
+                        a3.WorkingHours = Console.ReadLine() ?? "";
+                    }
+                    else if (record is Student s3)
+                        s3.Subject3 = ChooseSubject(new List<string> { s3.Subject1, s3.Subject2 });
+                    break;
+            }
         }
 
         Console.WriteLine("Record updated successfully.");
     }
 
+    // ================= DELETE ===================
     static void DeleteRecord()
     {
         Console.Write("Enter ID to delete: ");
-        if (!int.TryParse(Console.ReadLine(), out int id)) { Console.WriteLine("Invalid ID."); return; }
+        if (!int.TryParse(Console.ReadLine(), out int id)) return;
         var record = records.FirstOrDefault(r => r.Id == id);
-        if (record == null) { Console.WriteLine("Record not found."); return; }
+        if (record == null) return;
         records.Remove(record);
         Console.WriteLine("Record deleted.");
     }
 }
-
